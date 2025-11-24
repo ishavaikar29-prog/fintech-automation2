@@ -133,7 +133,7 @@ def create_report_excel(users, posts, todos, file_path="daily_report.xlsx"):
 
 # ============= Email Helper =============
 
-def send_email_with_attachment(
+def send_email_with_attachments(
     smtp_host,
     smtp_port,
     smtp_user,
@@ -141,9 +141,9 @@ def send_email_with_attachment(
     to_email,
     subject,
     body,
-    attachment_path
+    attachments
 ):
-    """Send email with an Excel attachment."""
+    """Send email with multiple attachments."""
     msg = MIMEMultipart()
     msg["From"] = smtp_user
     msg["To"] = to_email
@@ -151,14 +151,19 @@ def send_email_with_attachment(
 
     msg.attach(MIMEText(body, "plain"))
 
-    # Attachment
-    part = MIMEBase("application", "octet-stream")
-    with open(attachment_path, "rb") as f:
-        part.set_payload(f.read())
-    encoders.encode_base64(part)
-    part.add_header("Content-Disposition", f"attachment; filename={os.path.basename(attachment_path)}")
+    for file_path in attachments:
+        if not os.path.exists(file_path):
+            continue
 
-    msg.attach(part)
+        part = MIMEBase("application", "octet-stream")
+        with open(file_path, "rb") as f:
+            part.set_payload(f.read())
+        encoders.encode_base64(part)
+        part.add_header(
+            "Content-Disposition",
+            f"attachment; filename={os.path.basename(file_path)}"
+        )
+        msg.attach(part)
 
     try:
         server = smtplib.SMTP(smtp_host, smtp_port)
@@ -170,7 +175,6 @@ def send_email_with_attachment(
     except Exception as e:
         log_error("Email sending failed", e)
         print("ERROR: Email sending failed, check error.log")
-
 
 # ============= Main Flow =============
 
@@ -228,7 +232,13 @@ if __name__ == "__main__":
 
     # Step 4: Send email
     print("Sending email...")
-    send_email_with_attachment(
+    attachments = [report_file]
+
+# If errors exist, attach error.log
+    if os.path.exists(LOG_FILE) and os.path.getsize(LOG_FILE) > 0:
+        attachments.append(LOG_FILE)
+        
+    send_email_with_attachments(
         smtp_host=SMTP_HOST,
         smtp_port=SMTP_PORT,
         smtp_user=SMTP_USER,
@@ -236,7 +246,7 @@ if __name__ == "__main__":
         to_email=TO_EMAIL,
         subject="Daily Multi-API Report",
         body=email_body,
-        attachment_path=report_file,
-    )
+        attachments=attachments,
+)
 
     print("Job finished.")
